@@ -111,10 +111,11 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
 }
 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
+//senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double initial_yaw) {
-    double R = 1.0;   // Robot step, in meters.
+    double R = 0.2;   // Robot step, in meters.
     double n = 3;
-    octomap::OcTreeNode *n_cur; // What is *n_cur
+    octomap::OcTreeNode *n_cur; // What is *n_cur################
 
     vector<pair<point3d, point3d>> candidates;
     double z = sensor_orig.z();                // fixed 
@@ -194,13 +195,16 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {  /
     }
     // hits.push_back(point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z));
     // Insert points into octomap one by one...
-    for (int j = 1; j< cloud->width; j++)
+    for (int i = 1; i< cloud->width; i++)
     {
-        // if(isnan(cloud->at(j).x)) continue;
-        if(cloud->at(j).z < -1.0)    continue;  
-        hits.push_back(point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z));
-        // cur_tree->insertRay(point3d( velo_orig.x(),velo_orig.y(),velo_orig.z()), 
-        //     point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z), Velodyne_puck.max_range);
+        for (int j = 1; j< cloud->height; j++)
+        {
+            if(isnan(cloud->at(i,j).x)) continue;
+            if(cloud->at(i,j).z < -1.0)    continue;  
+            hits.push_back(point3d(cloud->at(i,j).x, cloud->at(i,j).y, cloud->at(i,j).z));
+            // cur_tree->insertRay(point3d( velo_orig.x(),velo_orig.y(),velo_orig.z()), 
+            //     point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z), Velodyne_puck.max_range);
+        }
     }
 
     cur_tree->insertPointCloud(hits, velo_orig, Kinect_360.max_range);
@@ -298,24 +302,24 @@ int main(int argc, char **argv) {
 
     bool got_tf = false;
 
-    // Update the pose of velodyne from predefined tf.
+    //Update the pose of velodyne from predefined tf.
     got_tf = false;
     while(!got_tf){
     try{
-        tf_listener->lookupTransform("/base_footprint", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
+        tf_listener->lookupTransform("/base_link", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
         velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
         tf::Matrix3x3(transform.getRotation()).getRPY(R_velo, P_velo, Y_velo);
         Sensor_PrincipalAxis.rotate_IP(R_velo, P_velo, Y_velo);
-        ROS_INFO("Current Velodyne heading: vector(%2.2f, %2.2f, %2.2f) -  RPY(%3.1f, %3.1f, %3.1f).", Sensor_PrincipalAxis.x(), Sensor_PrincipalAxis.y(), Sensor_PrincipalAxis.z(), R_velo/PI*180.0, P_velo/PI*180.0, Y_velo/PI*180.0);
+        ROS_INFO("Current Kinect heading: vector(%2.2f, %2.2f, %2.2f) -  RPY(%3.1f, %3.1f, %3.1f).", Sensor_PrincipalAxis.x(), Sensor_PrincipalAxis.y(), Sensor_PrincipalAxis.z(), R_velo/PI*180.0, P_velo/PI*180.0, Y_velo/PI*180.0);
         got_tf = true;
         }
     catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: initial pose of Velodyne"); 
+        ROS_WARN("Wait for tf: initial pose of Kinect"); 
         ros::Duration(0.05).sleep();
         } 
     }   
     
-    // Rotate Sensor Model based on Velodyn Pose
+     //Rotate Sensor Model based on Velodyn Pose
     Kinect_360.SensorRays.rotate(R_velo, P_velo, Y_velo);
     
     // Update the initial location of the robot
@@ -327,7 +331,7 @@ int main(int argc, char **argv) {
         got_tf = true;
     }
     catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: velodyne to map"); 
+        ROS_WARN("Wait for tf: Kinect to map"); 
     } 
     ros::Duration(0.05).sleep();
     }
